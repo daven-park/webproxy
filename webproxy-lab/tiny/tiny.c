@@ -50,7 +50,7 @@ void doit(int fd)
   int is_static;
   struct stat sbuf;
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-  char filename[MAXLINE], cgiargn[MAXLINE];
+  char filename[MAXLINE], cgiargs[MAXLINE];
   rio_t rio;
 
   Rio_readinitb(&rio, fd);
@@ -105,7 +105,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
   sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
   sprintf(body, "%s<hr><em>The Tiny Web server</em>\r\n", body);
 
-  sprintf(buf, "HTTP\1.0 %s %s\r\n", errnum, shortmsg);
+  sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
   Rio_writen(fd, buf, strlen(buf));
   sprintf(buf, "Content-type: text/html\r\n");
   Rio_writen(fd, buf, strlen(buf));
@@ -175,7 +175,7 @@ void serve_static(int fd, char *filename, int filesize)
   printf("Response headers:\n");
   printf("%s", buf);
 
-  srcfd = Opne(filename, O_RDONLY, 0);
+  srcfd = Open(filename, O_RDONLY, 0);
   srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
   munmap(srcp, filesize);
 }
