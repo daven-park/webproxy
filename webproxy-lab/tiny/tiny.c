@@ -119,7 +119,7 @@ void read_requesthdrs(rio_t *rp)
   char buf[MAXLINE];
 
   Rio_readlineb(rp, buf, MAXLINE);
-  while (strcmp(buf, "r\n"))
+  while (strcmp(buf, "\r\n"))
   {
     Rio_readlineb(rp, buf, MAXLINE);
     printf("%s", buf);
@@ -177,7 +177,9 @@ void serve_static(int fd, char *filename, int filesize)
 
   srcfd = Open(filename, O_RDONLY, 0);
   srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
-  munmap(srcp, filesize);
+  Close(srcfd);
+  Rio_writen(fd, srcp, filesize);
+  Munmap(srcp, filesize);
 }
 
 /**
@@ -205,6 +207,10 @@ void get_filetype(char *filename, char *filetype)
   {
     strcpy(filetype, "image/jpeg");
   }
+  else if (strstr(filename, ".mp4"))
+  {
+    strcpy(filetype, "video/mp4");
+  }
   else
   {
     strcpy(filetype, "text/plain");
@@ -214,12 +220,12 @@ void get_filetype(char *filename, char *filetype)
 void serve_dynamic(int fd, char *filename, char *cgiargs)
 {
   char buf[MAXLINE], *emptylist[] = {NULL};
-
   sprintf(buf, "HTTP/1.0 200 OK\r\n");
   Rio_writen(fd, buf, strlen(buf));
   sprintf(buf, "Server: Tiny Web Server\r\n");
   Rio_writen(fd, buf, strlen(buf));
-
+  sprintf(buf, "%sConnection: close\r\n", buf);
+  Rio_writen(fd, buf, strlen(buf));
   if (Fork() == 0)
   {
     setenv("QUERY_STRING", cgiargs, 1);
