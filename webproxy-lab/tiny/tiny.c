@@ -11,9 +11,9 @@
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
 int parse_uri(char *uri, char *filename, char *cgiargs);
-void serve_static(int fd, char *filename, int filesize);
+void serve_static(int fd, char *filename, int filesize, int is_head);
 void get_filetype(char *filename, char *filetype);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
+void serve_dynamic(int fd, char *filename, char *cgiargs, int is_head);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
                  char *longmsg);
 
@@ -52,17 +52,24 @@ void doit(int fd)
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   char filename[MAXLINE], cgiargs[MAXLINE];
   rio_t rio;
+  int is_head = 0; // is_head = 1 ? method = HEAD
 
   Rio_readinitb(&rio, fd);
   Rio_readlineb(&rio, buf, MAXLINE);
   printf("Request headers:\n");
   printf("%s", buf);
   sscanf(buf, "%s %s %s", method, uri, version);
-  if (strcasecmp(method, "GET"))
+  if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD"))
   {
     clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
     return;
   }
+
+  if (!strcasecmp(method, "HEAD"))
+  {
+    is_head = 1;
+  }
+
   read_requesthdrs(&rio);
 
   is_static = parse_uri(uri, filename, cgiargs);
@@ -79,7 +86,7 @@ void doit(int fd)
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
       return;
     }
-    serve_static(fd, filename, sbuf.st_size);
+    serve_static(fd, filename, sbuf.st_size, is_head);
   }
   else
   {
@@ -88,7 +95,7 @@ void doit(int fd)
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program");
       return;
     }
-    serve_dynamic(fd, filename, cgiargs);
+    serve_dynamic(fd, filename, cgiargs, is_head);
   }
 }
 
@@ -160,7 +167,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
   }
 }
 
-void serve_static(int fd, char *filename, int filesize)
+void serve_static(int fd, char *filename, int filesize, int is_head)
 {
   int srcfd;
   char *srcp, filetype[MAXLINE], buf[MAXBUF];
@@ -175,16 +182,19 @@ void serve_static(int fd, char *filename, int filesize)
   printf("Response headers:\n");
   printf("%s", buf);
 
-  srcfd = Open(filename, O_RDONLY, 0);
-  srcp = (char *)malloc(filesize);
-  if (srcp == NULL)
+  if (!is_head)
   {
-    unix_error("malloc error");
+    srcfd = Open(filename, O_RDONLY, 0);
+    srcp = (char *)malloc(filesize);
+    if (srcp == NULL)
+    {
+      unix_error("malloc error");
+    }
+    Rio_readn(srcfd, srcp, filesize);
+    Close(srcfd);
+    Rio_writen(fd, srcp, filesize);
+    free(srcp);
   }
-  Rio_readn(srcfd, srcp, filesize);
-  Close(srcfd);
-  Rio_writen(fd, srcp, filesize);
-  free(srcp);
 }
 
 /**
@@ -222,7 +232,7 @@ void get_filetype(char *filename, char *filetype)
   }
 }
 
-void serve_dynamic(int fd, char *filename, char *cgiargs)
+void serve_dynamic(int fd, char *filename, char *cgiargs, int is_head)
 {
   char buf[MAXLINE], *emptylist[] = {NULL};
   sprintf(buf, "HTTP/1.0 200 OK\r\n");
@@ -231,11 +241,15 @@ void serve_dynamic(int fd, char *filename, char *cgiargs)
   Rio_writen(fd, buf, strlen(buf));
   sprintf(buf, "%sConnection: close\r\n", buf);
   Rio_writen(fd, buf, strlen(buf));
-  if (Fork() == 0)
+
+  if (!is_head)
   {
-    setenv("QUERY_STRING", cgiargs, 1);
-    Dup2(fd, STDOUT_FILENO);
-    Execve(filename, emptylist, environ);
+    if (Fork() == 0)
+    {
+      setenv("QUERY_STRING", cgiargs, 1);
+      Dup2(fd, STDOUT_FILENO);
+      Execve(filename, emptylist, environ);
+    }
+    Wait(NULL);
   }
-  Wait(NULL);
 }
