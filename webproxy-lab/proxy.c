@@ -6,6 +6,7 @@
 void doit(int fd, char *hostname);
 void read_requesthdrs(rio_t *rp, int fd);
 void parse_uri(char *uri, char *hostname, char *port, char *path);
+void *thread(void *vargp);
 /* You won't lose style points for including this long line in your code */
 // Mozilla/5.0 = Mozilla와 호환 가능하다는 것을 나타내는 토큰
 // X11; Linux x86_64 = 브라우저가 작동하는 네이티브 플랫폼
@@ -18,7 +19,7 @@ static const char *user_agent_hdr =
 
 int main(int argc, char **argv)
 {
-  int listenfd, connfd, proxyfd;
+  int listenfd;
   char hostname[MAXLINE], port[MAXLINE];
   socklen_t clientlen;
   struct sockaddr_storage clientaddr;
@@ -33,13 +34,29 @@ int main(int argc, char **argv)
 
   while (1)
   {
-    clientlen = sizeof(clientaddr);
-    connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-    Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
-    printf("Accepted connection from (%s, %s)\n", hostname, port);
-    doit(connfd, hostname);
-    Close(connfd);
+    int *connfdp = malloc(sizeof(int));
+    socklen_t clientlen = sizeof(struct sockaddr_storage); // 꼭 초기화할 것
+    *connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+
+    pthread_t tid;
+    Pthread_create(&tid, NULL, thread, connfdp);
+    Pthread_detach(tid);
   }
+}
+
+void *thread(void *vargp)
+{
+  int connfd = *((int *)vargp);
+  free(vargp);
+  char hostname[MAXLINE], port[MAXLINE];
+  struct sockaddr_storage clientaddr;
+  socklen_t clientlen = sizeof(clientaddr);
+  getpeername(connfd, (SA *)&clientaddr, &clientlen);
+  Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
+  printf("Accepted connection from (%s, %s)\n", hostname, port);
+  doit(connfd, hostname);
+  Close(connfd);
+  return NULL;
 }
 
 void doit(int fd, char *hostname)
