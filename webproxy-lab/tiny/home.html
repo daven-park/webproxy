@@ -3,14 +3,17 @@
 <head><title>test</title>
 <link rel="icon" href="data:," /></head>
 <body> 
-<video controls width="250">
-    <source src="karina.mp4" type="video/mp4">
-</video>
-<img align="middle" src="omedeto.gif">
-omedeto 
+    <div style="display: flex; gap: 20px;">
+        <video controls width="250" muted autoplay playsinline>
+            <source src="karina.mp4" type="video/mp4">
+        </video>
+        <img align="middle" width="250" src="karina.jpg">
+        <div>karina</div>
+    </div>
+
 <form action="/cgi-bin/adder" method="get">
-    <input type="text" id="num1" name="num1"/>
-    <input type="text" id="num2" name="num2"/>
+    <input type="text" style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;" id="num1" name="num1"/>
+    <input type="text" style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;" id="num2" name="num2"/>
     <button type="submit">submit</button>
 </form>
 
