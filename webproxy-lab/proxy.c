@@ -4,7 +4,7 @@
 #define MAX_OBJECT_SIZE 102400
 
 void doit(int fd, char *hostname);
-void read_requesthdrs(rio_t *rp);
+void read_requesthdrs(rio_t *rp, int fd);
 void parse_uri(char *uri, char *hostname, char *port, char *path);
 /* You won't lose style points for including this long line in your code */
 // Mozilla/5.0 = Mozilla와 호환 가능하다는 것을 나타내는 토큰
@@ -62,9 +62,9 @@ void doit(int fd, char *hostname)
   // tiny 서버에 파싱한 문자열 요청
   proxyfd = Open_clientfd(hostname, port);
   Rio_readinitb(&rio_server, proxyfd);
-  read_requesthdrs(&rio_client);
 
   write_proxyhdrs(proxyfd, hostname, parsed_uri);
+  read_requesthdrs(&rio_client, proxyfd);
 
   // tiny server에서 받아온 응답을 읽어서 clientfd에 써주기
   int len;
@@ -88,7 +88,7 @@ void write_proxyhdrs(int fd, char *host, char *path)
   Rio_writen(fd, buf, strlen(buf));
 }
 
-void read_requesthdrs(rio_t *rp)
+void read_requesthdrs(rio_t *rp, int fd)
 {
   char buf[MAXLINE];
 
@@ -97,8 +97,9 @@ void read_requesthdrs(rio_t *rp)
   {
     Rio_readlineb(rp, buf, MAXLINE);
     printf("%s", buf);
+    Rio_writen(fd, buf, strlen(buf));
   }
-  return;
+  Rio_writen(fd, "\r\n", 2);
 }
 void parse_uri(char *uri, char *hostname, char *port, char *path)
 {
